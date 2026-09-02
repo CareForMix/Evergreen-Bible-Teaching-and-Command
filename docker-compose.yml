@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: evergreen
+      POSTGRES_USER: evergreen
+      POSTGRES_PASSWORD: change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - evergreen_pg:/var/lib/postgresql/data
+  api:
+    build: .
+    depends_on: [db]
+    env_file: .env
+    ports:
+      - "4100:4100"
+volumes:
+  evergreen_pg:
