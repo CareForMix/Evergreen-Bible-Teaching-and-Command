@@ -1,63 +1,45 @@
-import { config } from '../config.js';
+import { config } from ‘../config.js’;
 
 let cache = new Map();
 
-async function yt(endpoint, params) {
-  if (!config.youtubeApiKey || !config.youtubeChannelId) {
-    return { configured: false, channelUrl: config.youtubeChannelUrl, items: [] };
-  }
+async function yt(endpoint, params) { if (!config.youtubeApiKey ||
+!config.youtubeChannelId) { return { configured: false, channelUrl:
+config.youtubeChannelUrl, items: [] }; }
 
-  const qs = new URLSearchParams({ ...params, key: config.youtubeApiKey });
-  const url = `https://www.googleapis.com/youtube/v3/${endpoint}?${qs}`;
-  const res = await fetch(url);
-  const data = await res.json();
+const qs = new URLSearchParams({ …params, key: config.youtubeApiKey });
+const url = https://www.googleapis.com/youtube/v3/${endpoint}?${qs};
+const res = await fetch(url); const data = await res.json();
 
-  if (!res.ok) {
-    const message = data?.error?.message || `YouTube API error ${res.status}`;
-    throw Object.assign(new Error(message), { status: 502 });
-  }
+if (!res.ok) { const message = data?.error?.message ||
+YouTube API error ${res.status}; throw Object.assign(new Error(message),
+{ status: 502 }); }
 
-  return data;
-}
+return data; }
 
-async function cached(key, fn) {
-  const now = Date.now();
-  const hit = cache.get(key);
+async function cached(key, fn, ttlSeconds = config.youtubeCacheSeconds)
+{ const now = Date.now(); const hit = cache.get(key);
 
-  if (hit && hit.expires > now) return hit.value;
+if (hit && hit.expires > now) return hit.value;
 
-  const value = await fn();
-  cache.set(key, {
-    value,
-    expires: now + config.youtubeCacheSeconds * 1000,
-  });
+const value = await fn(); cache.set(key, { value, expires: now +
+ttlSeconds * 1000, });
 
-  return value;
-}
+return value; }
 
-async function uploadsPlaylistId() {
-  const data = await yt('channels', {
-    part: 'contentDetails',
-    id: config.youtubeChannelId,
-    maxResults: '1',
-  });
+async function uploadsPlaylistId() { const data = await yt(‘channels’, {
+part: ‘contentDetails’, id: config.youtubeChannelId, maxResults: ‘1’,
+});
 
-  if (data.configured === false) return null;
+if (data.configured === false) return null;
 
-  return data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads || null;
-}
+return data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads ||
+null; }
 
-async function fetchUploadPool(playlistId, wanted = 200) {
-  const collected = [];
-  let pageToken = '';
-  let safetyPages = 0;
+async function fetchUploadPool(playlistId, wanted = 200) { const
+collected = []; let pageToken = ’’; let safetyPages = 0;
 
-  while (collected.length < wanted && safetyPages < 10) {
-    const params = {
-      part: 'snippet,contentDetails',
-      playlistId,
-      maxResults: '50',
-    };
+while (collected.length < wanted && safetyPages < 10) { const params = {
+part: ‘snippet,contentDetails’, playlistId, maxResults: ‘50’, };
 
     if (pageToken) params.pageToken = pageToken;
 
@@ -70,20 +52,15 @@ async function fetchUploadPool(playlistId, wanted = 200) {
     safetyPages += 1;
 
     if (!pageToken) break;
-  }
 
-  return collected;
 }
 
-export async function latestVideos(maxResults = 8) {
-  return cached(`latest:${maxResults}`, async () => {
-    if (!config.youtubeApiKey || !config.youtubeChannelId) {
-      return {
-        configured: false,
-        channelUrl: config.youtubeChannelUrl,
-        items: [],
-      };
-    }
+return collected; }
+
+export async function latestVideos(maxResults = 8) { return
+cached(latest:${maxResults}, async () => { if (!config.youtubeApiKey ||
+!config.youtubeChannelId) { return { configured: false, channelUrl:
+config.youtubeChannelUrl, items: [], }; }
 
     const playlistId = await uploadsPlaylistId();
 
@@ -96,9 +73,8 @@ export async function latestVideos(maxResults = 8) {
     }
 
     /*
-     * Read up to 200 uploads from the channel using the uploads playlist.
-     * This avoids search.list quota and allows older movies/episodes to be
-     * discovered by the frontend's Biblical Drama filter.
+     * Read older uploads without search.list so Biblical Drama can still
+     * discover movies, series and episodes while using much less quota.
      */
     const data = await fetchUploadPool(playlistId, 200);
 
@@ -112,10 +88,14 @@ export async function latestVideos(maxResults = 8) {
 
         if (!videoId) return null;
 
+        // Keep only a short description for frontend classification.
+        // This greatly reduces JSON transferred through Render.
+        const description = (x.snippet?.description || '').slice(0, 600);
+
         return {
           videoId,
           title: x.snippet?.title || '',
-          description: x.snippet?.description || '',
+          description,
           publishedAt:
             x.contentDetails?.videoPublishedAt ||
             x.snippet?.publishedAt ||
@@ -140,18 +120,15 @@ export async function latestVideos(maxResults = 8) {
       channelUrl: config.youtubeChannelUrl,
       items,
     };
-  });
-}
 
-export async function liveVideo() {
-  return cached('live', async () => {
-    const data = await yt('search', {
-      part: 'snippet',
-      channelId: config.youtubeChannelId,
-      eventType: 'live',
-      type: 'video',
-      maxResults: '1',
-    });
+}); }
+
+export async function liveVideo() { / Keep the live-search result for 30
+minutes. * The frontend may poll frequently, but the backend will not
+repeatedly * call YouTube search.list during this cache window. */
+return cached(‘live’, async () => { const data = await yt(‘search’, {
+part: ‘snippet’, channelId: config.youtubeChannelId, eventType: ‘live’,
+type: ‘video’, maxResults: ‘1’, });
 
     if (data.configured === false) return data;
 
@@ -170,5 +147,5 @@ export async function liveVideo() {
           }
         : null,
     };
-  });
-}
+
+}, 1800); }
