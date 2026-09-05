@@ -1,66 +1,120 @@
-import { config } from ‘../config.js’;
+import { config } from '../config.js';
 
 let cache = new Map();
 
-async function yt(endpoint, params) { if (!config.youtubeApiKey ||
-!config.youtubeChannelId) { return { configured: false, channelUrl:
-config.youtubeChannelUrl, items: [] }; }
+async function yt(endpoint, params) {
+  if (!config.youtubeApiKey || !config.youtubeChannelId) {
+    return {
+      configured: false,
+      channelUrl: config.youtubeChannelUrl,
+      items: [],
+    };
+  }
 
-const qs = new URLSearchParams({ …params, key: config.youtubeApiKey });
-const url = https://www.googleapis.com/youtube/v3/${endpoint}?${qs};
-const res = await fetch(url); const data = await res.json();
+  const qs = new URLSearchParams({
+    ...params,
+    key: config.youtubeApiKey,
+  });
 
-if (!res.ok) { const message = data?.error?.message ||
-YouTube API error ${res.status}; throw Object.assign(new Error(message),
-{ status: 502 }); }
+  const url = `https://www.googleapis.com/youtube/v3/${endpoint}?${qs}`;
 
-return data; }
+  const res = await fetch(url);
+  const data = await res.json();
 
-async function cached(key, fn, ttlSeconds = config.youtubeCacheSeconds)
-{ const now = Date.now(); const hit = cache.get(key);
+  if (!res.ok) {
+    const message =
+      data?.error?.message || `YouTube API error ${res.status}`;
 
-if (hit && hit.expires > now) return hit.value;
+    throw Object.assign(new Error(message), {
+      status: 502,
+    });
+  }
 
-const value = await fn(); cache.set(key, { value, expires: now +
-ttlSeconds * 1000, });
+  return data;
+}
 
-return value; }
+async function cached(
+  key,
+  fn,
+  ttlSeconds = config.youtubeCacheSeconds
+) {
+  const now = Date.now();
+  const hit = cache.get(key);
 
-async function uploadsPlaylistId() { const data = await yt(‘channels’, {
-part: ‘contentDetails’, id: config.youtubeChannelId, maxResults: ‘1’,
-});
+  if (hit && hit.expires > now) {
+    return hit.value;
+  }
 
-if (data.configured === false) return null;
+  const value = await fn();
 
-return data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads ||
-null; }
+  cache.set(key, {
+    value,
+    expires: now + ttlSeconds * 1000,
+  });
 
-async function fetchUploadPool(playlistId, wanted = 200) { const
-collected = []; let pageToken = ’’; let safetyPages = 0;
+  return value;
+}
 
-while (collected.length < wanted && safetyPages < 10) { const params = {
-part: ‘snippet,contentDetails’, playlistId, maxResults: ‘50’, };
+async function uploadsPlaylistId() {
+  const data = await yt('channels', {
+    part: 'contentDetails',
+    id: config.youtubeChannelId,
+    maxResults: '1',
+  });
 
-    if (pageToken) params.pageToken = pageToken;
+  if (data.configured === false) {
+    return null;
+  }
+
+  return (
+    data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads || null
+  );
+}
+
+async function fetchUploadPool(playlistId, wanted = 200) {
+  const collected = [];
+  let pageToken = '';
+  let safetyPages = 0;
+
+  while (collected.length < wanted && safetyPages < 10) {
+    const params = {
+      part: 'snippet,contentDetails',
+      playlistId,
+      maxResults: '50',
+    };
+
+    if (pageToken) {
+      params.pageToken = pageToken;
+    }
 
     const data = await yt('playlistItems', params);
 
-    if (data.configured === false) return data;
+    if (data.configured === false) {
+      return data;
+    }
 
     collected.push(...(data.items || []));
+
     pageToken = data.nextPageToken || '';
     safetyPages += 1;
 
-    if (!pageToken) break;
+    if (!pageToken) {
+      break;
+    }
+  }
 
+  return collected;
 }
 
-return collected; }
-
-export async function latestVideos(maxResults = 8) { return
-cached(latest:${maxResults}, async () => { if (!config.youtubeApiKey ||
-!config.youtubeChannelId) { return { configured: false, channelUrl:
-config.youtubeChannelUrl, items: [], }; }
+export async function latestVideos(maxResults = 8) {
+  return cached(`latest:${maxResults}`, async () => {
+    if (!config.youtubeApiKey || !config.youtubeChannelId) {
+      return {
+        configured: false,
+        channelUrl: config.youtubeChannelUrl,
+        items: [],
+      };
+    }
 
     const playlistId = await uploadsPlaylistId();
 
@@ -78,7 +132,9 @@ config.youtubeChannelUrl, items: [], }; }
      */
     const data = await fetchUploadPool(playlistId, 200);
 
-    if (data?.configured === false) return data;
+    if (data?.configured === false) {
+      return data;
+    }
 
     const items = (data || [])
       .map((x) => {
@@ -86,11 +142,14 @@ config.youtubeChannelUrl, items: [], }; }
           x.contentDetails?.videoId ||
           x.snippet?.resourceId?.videoId;
 
-        if (!videoId) return null;
+        if (!videoId) {
+          return null;
+        }
 
-        // Keep only a short description for frontend classification.
-        // This greatly reduces JSON transferred through Render.
-        const description = (x.snippet?.description || '').slice(0, 600);
+        const description = (x.snippet?.description || '').slice(
+          0,
+          600
+        );
 
         return {
           videoId,
@@ -120,32 +179,46 @@ config.youtubeChannelUrl, items: [], }; }
       channelUrl: config.youtubeChannelUrl,
       items,
     };
+  });
+}
 
-}); }
+export async function liveVideo() {
+  /*
+   * Keep the live-search result for 30 minutes.
+   * The frontend may poll frequently, but the backend will not repeatedly
+   * call YouTube search.list during this cache window.
+   */
+  return cached(
+    'live',
+    async () => {
+      const data = await yt('search', {
+        part: 'snippet',
+        channelId: config.youtubeChannelId,
+        eventType: 'live',
+        type: 'video',
+        maxResults: '1',
+      });
 
-export async function liveVideo() { / Keep the live-search result for 30
-minutes. * The frontend may poll frequently, but the backend will not
-repeatedly * call YouTube search.list during this cache window. */
-return cached(‘live’, async () => { const data = await yt(‘search’, {
-part: ‘snippet’, channelId: config.youtubeChannelId, eventType: ‘live’,
-type: ‘video’, maxResults: ‘1’, });
+      if (data.configured === false) {
+        return data;
+      }
 
-    if (data.configured === false) return data;
+      const x = data.items?.[0];
 
-    const x = data.items?.[0];
-
-    return {
-      configured: true,
-      live: Boolean(x),
-      channelUrl: config.youtubeChannelUrl,
-      item: x
-        ? {
-            videoId: x.id.videoId,
-            title: x.snippet.title,
-            thumbnail: x.snippet.thumbnails?.high?.url,
-            watchUrl: `https://www.youtube.com/watch?v=${x.id.videoId}`,
-          }
-        : null,
-    };
-
-}, 1800); }
+      return {
+        configured: true,
+        live: Boolean(x),
+        channelUrl: config.youtubeChannelUrl,
+        item: x
+          ? {
+              videoId: x.id.videoId,
+              title: x.snippet.title,
+              thumbnail: x.snippet.thumbnails?.high?.url,
+              watchUrl: `https://www.youtube.com/watch?v=${x.id.videoId}`,
+            }
+          : null,
+      };
+    },
+    1800
+  );
+}
