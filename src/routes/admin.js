@@ -67,7 +67,6 @@ adminRouter.use(requireAdmin);
 adminRouter.get('/submissions', async (req, res, next) => {
   try {
     const type = req.query.type;
-
     const values = [];
     let where = '';
 
@@ -236,7 +235,7 @@ adminRouter.post('/events', async (req, res, next) => {
 });
 
 /* ---------------------------------------------------------
-   CREATE EVENT WITH IMAGE UPLOAD
+   CREATE EVENT WITH CLOUDINARY IMAGE UPLOAD
 --------------------------------------------------------- */
 
 adminRouter.post(
@@ -275,9 +274,8 @@ adminRouter.post(
 
       const d = schema.parse(req.body);
 
-      const imageUrl =
-        `${req.protocol}://${req.get('host')}` +
-        `/uploads/events/${req.file.filename}`;
+      // Permanent Cloudinary URL
+      const imageUrl = req.file.path;
 
       const q = await pool.query(
         `
@@ -315,8 +313,7 @@ adminRouter.post(
 
 adminRouter.patch('/events/:id', async (req, res, next) => {
   try {
-    const id = z
-      .coerce
+    const id = z.coerce
       .number()
       .int()
       .positive()
@@ -387,15 +384,9 @@ adminRouter.patch('/events/:id', async (req, res, next) => {
       `,
       [
         d.title ?? old.title,
-
-        d.description ??
-          old.description,
-
-        d.startsAt ??
-          old.starts_at,
-
-        d.location ??
-          old.location,
+        d.description ?? old.description,
+        d.startsAt ?? old.starts_at,
+        d.location ?? old.location,
 
         d.registrationUrl !== undefined
           ? d.registrationUrl || null
@@ -421,8 +412,7 @@ adminRouter.patch('/events/:id', async (req, res, next) => {
 
 adminRouter.delete('/events/:id', async (req, res, next) => {
   try {
-    const id = z
-      .coerce
+    const id = z.coerce
       .number()
       .int()
       .positive()
@@ -548,8 +538,7 @@ adminRouter.patch(
   '/announcements/:id',
   async (req, res, next) => {
     try {
-      const id = z
-        .coerce
+      const id = z.coerce
         .number()
         .int()
         .positive()
@@ -608,7 +597,6 @@ adminRouter.patch(
         `,
         [
           d.title ?? old.title,
-
           d.body ?? old.body,
 
           d.linkUrl !== undefined
@@ -636,8 +624,7 @@ adminRouter.delete(
   '/announcements/:id',
   async (req, res, next) => {
     try {
-      const id = z
-        .coerce
+      const id = z.coerce
         .number()
         .int()
         .positive()
@@ -757,7 +744,7 @@ adminRouter.post('/gallery', async (req, res, next) => {
 });
 
 /* ---------------------------------------------------------
-   CREATE GALLERY ITEM WITH IMAGE UPLOAD
+   CREATE GALLERY ITEM WITH CLOUDINARY IMAGE UPLOAD
 --------------------------------------------------------- */
 
 adminRouter.post(
@@ -789,9 +776,8 @@ adminRouter.post(
 
       const d = schema.parse(req.body);
 
-      const imageUrl =
-        `${req.protocol}://${req.get('host')}` +
-        `/uploads/gallery/${req.file.filename}`;
+      // Permanent Cloudinary URL
+      const imageUrl = req.file.path;
 
       const q = await pool.query(
         `
@@ -829,8 +815,7 @@ adminRouter.patch(
   '/gallery/:id',
   async (req, res, next) => {
     try {
-      const id = z
-        .coerce
+      const id = z.coerce
         .number()
         .int()
         .positive()
@@ -919,8 +904,7 @@ adminRouter.delete(
   '/gallery/:id',
   async (req, res, next) => {
     try {
-      const id = z
-        .coerce
+      const id = z.coerce
         .number()
         .int()
         .positive()
@@ -1052,7 +1036,7 @@ adminRouter.post('/news', async (req, res, next) => {
 });
 
 /* ---------------------------------------------------------
-   CREATE NEWS WITH IMAGE UPLOAD
+   CREATE NEWS WITH CLOUDINARY IMAGE UPLOAD
 --------------------------------------------------------- */
 
 adminRouter.post(
@@ -1095,9 +1079,8 @@ adminRouter.post(
 
       const d = schema.parse(req.body);
 
-      const imageUrl =
-        `${req.protocol}://${req.get('host')}` +
-        `/uploads/news/${req.file.filename}`;
+      // Permanent Cloudinary URL
+      const imageUrl = req.file.path;
 
       const q = await pool.query(
         `
@@ -1138,8 +1121,7 @@ adminRouter.patch(
   '/news/:id',
   async (req, res, next) => {
     try {
-      const id = z
-        .coerce
+      const id = z.coerce
         .number()
         .int()
         .positive()
@@ -1211,9 +1193,7 @@ adminRouter.patch(
         `,
         [
           d.title ?? old.title,
-
           d.summary ?? old.summary,
-
           d.body ?? old.body,
 
           d.imageUrl !== undefined
@@ -1245,8 +1225,7 @@ adminRouter.delete(
   '/news/:id',
   async (req, res, next) => {
     try {
-      const id = z
-        .coerce
+      const id = z.coerce
         .number()
         .int()
         .positive()
