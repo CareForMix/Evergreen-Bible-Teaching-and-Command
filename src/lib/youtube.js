@@ -123,11 +123,126 @@ async function fetchUploadPool(
   return collected;
 }
 
+function isEvergreenMinistryVideo(video) {
+  const text = `${video?.title || ''} ${video?.description || ''}`
+    .toLowerCase();
+
+  /*
+   * Block CareForMix / business / promotional content.
+   * These videos may exist on the same YouTube channel,
+   * but they should not appear on Evergreen ministry feeds.
+   */
+  const blocked = [
+    'careformix',
+    'care for mix',
+    'careformix media',
+    'careformix media ltd',
+    'premium digital marketing',
+    'digital marketing',
+    'marketing service',
+    'social media marketing',
+    'build your brand',
+    'grow with careformix',
+    'business promotion',
+    'advertisement',
+    'advertising',
+    'promotional video',
+    'promo video',
+    'website development',
+    'web development',
+    'branding service',
+    'client project',
+    'portfolio'
+  ];
+
+  if (
+    blocked.some(
+      (word) => text.includes(word)
+    )
+  ) {
+    return false;
+  }
+
+  /*
+   * Evergreen ministry / Christian content.
+   * This allows worship, prayer, testimony,
+   * sermons, teaching, films, dramas and related
+   * faith-based videos.
+   */
+  const ministry = [
+    'evergreen',
+    'bible',
+    'biblical',
+    'jesus',
+    'christ',
+    'christian',
+    'god',
+    'lord',
+    'father',
+    'holy spirit',
+    'holy ghost',
+    'gospel',
+    'scripture',
+    'prayer',
+    'pray',
+    'worship',
+    'praise',
+    'testimony',
+    'testimonies',
+    'sermon',
+    'sunday message',
+    'sunday bible message',
+    'word of god',
+    'bible teaching',
+    'biblical teaching',
+    'faith',
+    'faith journey',
+    'spiritual journey',
+    'church',
+    'ministry',
+    'salvation',
+    'revelation',
+    'heaven',
+    'kingdom of god',
+    'christian movie',
+    'christian film',
+    'biblical movie',
+    'bible movie',
+    'biblical drama',
+    'bible drama',
+    'christian drama',
+    'faith-based drama',
+    'faith based drama',
+    'short film',
+    'feature film',
+    'drama series',
+    'episode',
+    'parable drama',
+    'family drama',
+    'worship song',
+    'christian worship',
+    'christian music',
+    'devotional song',
+    'आराधना',
+    'प्रार्थना',
+    'परमेश्वर',
+    'यीशु',
+    'प्रभु',
+    'मसीह',
+    'गवाही',
+    'गीत'
+  ];
+
+  return ministry.some(
+    (word) => text.includes(word)
+  );
+}
+
 export async function latestVideos(
   maxResults = 8
 ) {
   return cached(
-    `latest:${maxResults}`,
+    `latest:ministry-v2:${maxResults}`,
     async () => {
       if (
         !config.youtubeApiKey ||
@@ -214,6 +329,7 @@ export async function latestVideos(
           };
         })
         .filter(Boolean)
+        .filter(isEvergreenMinistryVideo)
         .sort(
           (a, b) =>
             new Date(
@@ -289,4 +405,3 @@ export async function liveVideo() {
     1800
   );
 }
-
